@@ -1,0 +1,2 @@
+# İsteğe bağlı: uygulamayı tarayıcı yerine ayrı bir pencerede açmak için
+pywebview>=5.0

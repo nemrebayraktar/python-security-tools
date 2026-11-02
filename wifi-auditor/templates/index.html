@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi Güvenlik Denetim Aracı v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #05080f;
+  --bg-primary: #0a0f1c;
+  --bg-card: #0f1628;
+  --bg-card-alt: #131b30;
+  --bg-hover: #182040;
+  --accent-cyan: #00e5ff;
+  --accent-blue: #3b82f6;
+  --accent-purple: #a855f7;
+  --accent-green: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --text-primary: #e8ecf4;
+  --text-secondary: #8892a8;
+  --text-muted: #4a5568;
+  --border: rgba(56, 189, 248, 0.08);
+  --border-active: rgba(0, 229, 255, 0.2);
+  --glow-cyan: rgba(0, 229, 255, 0.15);
+  --glow-danger: rgba(239, 68, 68, 0.15);
+  --radius: 14px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0;
+}
+
+/* ===== ETHICS MODAL ===== */
+.eth-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5,8,15,0.92);
+  backdrop-filter: blur(20px);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.eth-overlay.hidden { display: none; }
+
+.eth-card {
+  background: linear-gradient(145deg, var(--bg-card), var(--bg-primary));
+  border: 1px solid var(--border-active);
+  border-radius: 20px;
+  max-width: 620px; width: 100%;
+  padding: 44px;
+  animation: ethIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.eth-card::before {
+  content: '';
+  position: absolute; top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: conic-gradient(from 180deg, transparent, var(--glow-cyan), transparent 30%);
+  animation: ethGlow 8s linear infinite;
+  opacity: 0.3;
+}
+@keyframes ethGlow { to { transform: rotate(360deg); } }
+@keyframes ethIn { from { opacity:0; transform:translateY(40px) scale(0.95); } }
+
+.eth-inner { position: relative; z-index: 1; }
+
+.eth-shield {
+  width: 80px; height: 80px;
+  margin: 0 auto 28px;
+  background: linear-gradient(135deg, rgba(0,229,255,0.1), rgba(168,85,247,0.1));
+  border: 2px solid rgba(0,229,255,0.25);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px;
+  animation: shieldPulse 3s ease-in-out infinite;
+}
+@keyframes shieldPulse {
+  0%,100% { box-shadow: 0 0 20px rgba(0,229,255,0.1); }
+  50% { box-shadow: 0 0 40px rgba(0,229,255,0.25); }
+}
+
+.eth-card h2 {
+  text-align: center;
+  font-size: 24px; font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+.eth-card .sub { text-align: center; color: var(--text-secondary); font-size: 14px; margin-bottom: 28px; }
+
+.eth-rules {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.eth-rule {
+  display: flex; gap: 14px; padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; line-height: 1.6;
+}
+.eth-rule:last-child { border: none; }
+.eth-rule .ico { font-size: 20px; flex-shrink: 0; }
+.eth-rule .txt { color: var(--text-secondary); }
+.eth-rule .txt strong { color: var(--text-primary); }
+
+.eth-warn {
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #fca5a5;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+
+.eth-check {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px; cursor: pointer; font-size: 14px;
+}
+.eth-check input {
+  width: 22px; height: 22px;
+  accent-color: var(--accent-cyan);
+  cursor: pointer;
+}
+
+.btn-go {
+  width: 100%; padding: 16px;
+  border: none; border-radius: 12px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px; font-weight: 700;
+  cursor: pointer; transition: all 0.4s;
+  background: var(--text-muted); color: var(--bg-deep);
+  letter-spacing: 0.5px;
+}
+.btn-go.live {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  color: white;
+  box-shadow: 0 4px 30px rgba(0,229,255,0.3);
+}
+.btn-go.live:hover { transform: translateY(-2px); box-shadow: 0 8px 40px rgba(0,229,255,0.4); }
+
+/* ===== MAIN APP ===== */
+.app { padding: 20px 28px; max-width: 1440px; margin: 0 auto; position: relative; z-index: 1; }
+
+/* Top Bar */
+.top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 0 24px; border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-mark {
+  width: 46px; height: 46px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 20px rgba(0,229,255,0.2);
+}
+.brand h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.brand .ver {
+  font-size: 10px; font-weight: 700;
+  background: var(--accent-cyan);
+  color: var(--bg-deep);
+  padding: 2px 8px; border-radius: 4px;
+  margin-left: 10px; vertical-align: middle;
+}
+.brand .cisa-badge {
+  font-size: 10px; font-weight: 700;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: white;
+  padding: 2px 8px; border-radius: 4px;
+  margin-left: 4px; vertical-align: middle;
+}
+
+.top-actions { display: flex; gap: 10px; }
+
+.btn {
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.25s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--accent-cyan); box-shadow: 0 0 20px var(--glow-cyan); }
+.btn-scan {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  border: none; color: white;
+  box-shadow: 0 2px 16px rgba(0,229,255,0.2);
+}
+.btn-scan:hover { box-shadow: 0 4px 24px rgba(0,229,255,0.35); transform: translateY(-1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+/* Network Info Panel */
+.net-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.net-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.net-item {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  transition: border-color 0.3s;
+}
+.net-item:hover { border-color: var(--border-active); }
+.net-item .lbl {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+  color: var(--text-muted); font-weight: 700; margin-bottom: 6px;
+}
+.net-item .val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px; font-weight: 600;
+  color: var(--accent-cyan);
+  word-break: break-all;
+}
+
+/* Progress */
+.prog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+  display: none;
+}
+.prog.on { display: block; }
+.prog-bar {
+  width: 100%; height: 4px;
+  background: var(--bg-deep);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 14px 0;
+}
+.prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+  border-radius: 2px;
+  transition: width 0.6s ease;
+  width: 0%;
+  box-shadow: 0 0 12px var(--accent-cyan);
+}
+.prog-info {
+  display: flex; justify-content: space-between;
+  font-size: 13px; color: var(--text-secondary);
+}
+.prog-info .pct {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--accent-cyan); font-weight: 600;
+}
+
+/* Module badges */
+.mod-strip {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 20px;
+}
+.mod-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text-secondary);
+}
+.mod-badge.ok { border-color: rgba(16,185,129,0.3); color: var(--accent-green); }
+.mod-badge.warn { border-color: rgba(245,158,11,0.3); color: var(--warning); }
+.mod-badge.crit { border-color: rgba(239,68,68,0.3); color: var(--danger); }
+
+/* Results */
+.results { display: none; }
+.results.on { display: block; }
+
+/* Summary Cards */
+.sum-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.sum-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  text-align: center;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+.sum-card:hover { border-color: var(--border-active); transform: translateY(-2px); }
+.sum-card .num {
+  font-size: 42px; font-weight: 900;
+  font-family: 'IBM Plex Mono', monospace;
+  line-height: 1;
+}
+.sum-card .lbl {
+  font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 1.2px;
+  margin-top: 8px; font-weight: 700;
+}
+.risk-bar {
+  width: 100%; height: 4px;
+  background: var(--bg-deep);
+  border-radius: 2px; overflow: hidden;
+  margin-top: 12px;
+}
+.risk-fill {
+  height: 100%; border-radius: 2px;
+  transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Tabs */
+.tabs {
+  display: flex; gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 4px; border-radius: 12px;
+  margin-bottom: 24px;
+}
+.tab {
+  flex: 1; padding: 11px 14px;
+  border: none; border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.25s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.tab.on {
+  background: var(--bg-deep);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 16px var(--glow-cyan);
+}
+.tab:hover:not(.on) { color: var(--text-primary); }
+.tab-cnt { display: none; }
+.tab-cnt.on { display: block; }
+
+/* Data Tables */
+.data-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.data-wrap h3 {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; gap: 10px;
+}
+.cnt-badge {
+  background: var(--accent-cyan);
+  color: var(--bg-deep);
+  padding: 2px 10px; border-radius: 10px;
+  font-size: 11px; font-weight: 800;
+}
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  background: var(--bg-deep);
+  padding: 12px 16px; text-align: left;
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 1.2px; color: var(--text-muted);
+  font-weight: 700;
+}
+td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; vertical-align: top;
+}
+tr:hover { background: var(--bg-hover); }
+
+.sev {
+  display: inline-block;
+  padding: 3px 12px; border-radius: 6px;
+  font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.sev-k { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
+.sev-y { background: rgba(249,115,22,0.12); color: #f97316; border: 1px solid rgba(249,115,22,0.25); }
+.sev-o { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+.sev-d { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.cyan { color: var(--accent-cyan); }
+.green { color: var(--accent-green); }
+.red { color: var(--danger); font-weight: 700; }
+
+.empty {
+  padding: 50px; text-align: center; color: var(--text-muted);
+}
+.empty .e-ico { font-size: 44px; margin-bottom: 14px; opacity: 0.5; }
+
+.port-chip {
+  display: inline-block;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: 5px;
+  font-size: 11px; margin: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Module Findings Panel */
+.findings-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.findings-panel h3 {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px; display: flex; align-items: center; gap: 10px;
+}
+.finding-row {
+  display: flex; gap: 12px; padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; align-items: flex-start;
+}
+.finding-row:last-child { border: none; }
+.finding-ico { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.finding-txt { color: var(--text-secondary); line-height: 1.5; }
+
+/* Report Button */
+.report-area {
+  text-align: center;
+  padding: 30px 0 50px;
+}
+.btn-report {
+  padding: 16px 48px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  border: none; border-radius: 12px;
+  color: white; font-family: 'Outfit', sans-serif;
+  font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: all 0.3s;
+  box-shadow: 0 4px 24px rgba(0,229,255,0.2);
+}
+.btn-report:hover { transform: translateY(-2px); box-shadow: 0 8px 40px rgba(0,229,255,0.35); }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--text-muted);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes scanPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.2); }
+  50% { box-shadow: 0 0 0 12px rgba(0,229,255,0); }
+}
+
+@media (max-width: 768px) {
+  .net-grid { grid-template-columns: repeat(2, 1fr); }
+  .sum-grid { grid-template-columns: repeat(2, 1fr); }
+  .top { flex-direction: column; gap: 14px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ETHICS MODAL -->
+<div class="eth-overlay" id="ethOverlay">
+<div class="eth-card">
+<div class="eth-inner">
+  <div class="eth-shield">🛡️</div>
+  <h2>Etik Kullanım Sözleşmesi</h2>
+  <p class="sub">Bu aracı kullanmadan önce koşulları kabul edin</p>
+
+  <div class="eth-rules">
+    <div class="eth-rule">
+      <span class="ico">🔒</span>
+      <span class="txt"><strong>Yalnızca izinli ağlarda kullanın.</strong> Ağ sahibinden sözlü veya yazılı izin alın. Kendi ağınız dahil.</span>
+    </div>
+    <div class="eth-rule">
+      <span class="ico">🎓</span>
+      <span class="txt"><strong>Eğitim ve denetim amaçlıdır.</strong> Denetim ve öğrenme amaçlı hazırlanmıştır; parola veya kimlik bilgisi toplamaz.</span>
+    </div>
+    <div class="eth-rule">
+      <span class="ico">📊</span>
+      <span class="txt"><strong>Bulguları yalnızca ağ yöneticisiyle paylaşın.</strong> Üçüncü kişilere iletmeyin.</span>
+    </div>
+    <div class="eth-rule">
+      <span class="ico">⚖️</span>
+      <span class="txt"><strong>Yasal sorumluluk:</strong> İzinsiz tarama TCK 243-245, CFAA, CMA kapsamında suçtur.</span>
+    </div>
+    <div class="eth-rule">
+      <span class="ico">📋</span>
+      <span class="txt"><strong>ISACA Etik Kuralları:</strong> Denetim bulgularını yalnızca iyileştirme amacıyla kullanın.</span>
+    </div>
+  </div>
+
+  <div class="eth-warn">
+    <span>⚠️</span>
+    <span>Bu aracı izinsiz ağlarda kullanmanız halinde tüm yasal sorumluluk size aittir.</span>
+  </div>
+
+  <label class="eth-check">
+    <input type="checkbox" id="ethCheck" onchange="togAccept()">
+    <span>Koşulları okudum, <strong>yalnızca izinli ağlarda</strong> kullanacağım.</span>
+  </label>
+
+  <button class="btn-go" id="goBtn" onclick="acceptEth()" disabled>Kabul Et ve Devam Et</button>
+</div>
+</div>
+</div>
+
+<!-- MAIN APP -->
+<div class="app" id="app" style="opacity:0;pointer-events:none">
+
+  <div class="top">
+    <div class="brand">
+      <div class="brand-mark">📡</div>
+      <div>
+        <h1>WiFi Denetim<span class="ver">v2</span></h1>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn" onclick="refreshNet()">🔄 Ağ Bilgisi</button>
+      <button class="btn btn-scan" id="scanBtn" onclick="startScan()">🔍 Taramayı Başlat</button>
+    </div>
+  </div>
+
+  <!-- Network Info -->
+  <div class="net-panel" id="netPanel">
+    <div class="net-grid" id="netGrid">
+      <div class="net-item"><div class="lbl">Yükleniyor</div><div class="val"><span class="spinner"></span></div></div>
+    </div>
+  </div>
+
+  <!-- Module Badges -->
+  <div class="mod-strip" id="modStrip" style="display:none"></div>
+
+  <!-- Progress -->
+  <div class="prog" id="prog">
+    <div class="prog-info">
+      <span id="progMsg">Başlatılıyor...</span>
+      <span class="pct" id="progPct">0%</span>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="sum-grid" id="sumGrid"></div>
+
+    <div class="tabs">
+      <button class="tab on" onclick="swTab('vulns',this)">🛡️ Zafiyetler</button>
+      <button class="tab" onclick="swTab('hosts',this)">💻 Cihazlar</button>
+      <button class="tab" onclick="swTab('wifi',this)">📶 Wi-Fi</button>
+      <button class="tab" onclick="swTab('ports',this)">🔌 Portlar</button>
+      <button class="tab" onclick="swTab('modules',this)">🧩 Modüller</button>
+    </div>
+
+    <div class="tab-cnt on" id="t-vulns"></div>
+    <div class="tab-cnt" id="t-hosts"></div>
+    <div class="tab-cnt" id="t-wifi"></div>
+    <div class="tab-cnt" id="t-ports"></div>
+    <div class="tab-cnt" id="t-modules"></div>
+
+    <div class="report-area">
+      <button class="btn-report" onclick="genReport()">📄 Rapor Oluştur ve Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Sunucudan gelen her şeyi (özellikle SSID'ler, hostname'ler) HTML'e basmadan önce escape et.
+// Komşu bir ağın adı "<img onerror=...>" olabilir.
+function esc(v){
+  return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const POST={method:'POST',headers:{'X-Requested-With':'wifi-auditor'}};
+
+function togAccept(){
+  const c=document.getElementById('ethCheck').checked;
+  const b=document.getElementById('goBtn');
+  b.disabled=!c; b.classList.toggle('live',c);
+}
+function acceptEth(){
+  if(!document.getElementById('ethCheck').checked) return;
+  document.getElementById('ethOverlay').classList.add('hidden');
+  const a=document.getElementById('app'); a.style.opacity='1'; a.style.pointerEvents='auto';
+  refreshNet();
+}
+
+async function refreshNet(){
+  const g=document.getElementById('netGrid');
+  g.innerHTML='<div class="net-item"><div class="lbl">Yükleniyor</div><div class="val"><span class="spinner"></span></div></div>';
+  try{
+    const r=await fetch('/api/network-info'); const d=await r.json();
+    const items=[
+      {l:'Ağ Adı (SSID)',v:d.ssid},{l:'Yerel IP',v:d.local_ip},{l:'Gateway',v:d.gateway},
+      {l:'Güvenlik',v:d.security},{l:'Kanal',v:d.channel},{l:'Subnet',v:d.subnet_mask},
+      {l:'DNS',v:(d.dns_servers||[]).join(', ')},{l:'Hostname',v:d.hostname}
+    ];
+    g.innerHTML=items.map(i=>`<div class="net-item"><div class="lbl">${i.l}</div><div class="val">${esc(i.v||'—')}</div></div>`).join('');
+  }catch(e){
+    g.innerHTML='<div class="net-item"><div class="lbl">Hata</div><div class="val red">Ağ bilgisi alınamadı</div></div>';
+  }
+}
+
+let poll=null;
+async function startScan(){
+  const b=document.getElementById('scanBtn');
+  b.disabled=true; b.innerHTML='<span class="spinner"></span> Taranıyor...';
+  document.getElementById('prog').classList.add('on');
+  document.getElementById('results').classList.remove('on');
+  document.getElementById('modStrip').style.display='none';
+  try{ await fetch('/api/scan/start',POST); poll=setInterval(pollProg,700); }
+  catch(e){ alert('Hata: '+e.message); b.disabled=false; b.innerHTML='🔍 Taramayı Başlat'; }
+}
+
+async function pollProg(){
+  try{
+    const r=await fetch('/api/scan/progress'); const p=await r.json();
+    document.getElementById('progMsg').textContent=p.message;
+    document.getElementById('progPct').textContent=p.current+'%';
+    document.getElementById('progFill').style.width=p.current+'%';
+    if(p.status==='completed'||p.status==='error'){
+      clearInterval(poll);
+      document.getElementById('scanBtn').disabled=false;
+      document.getElementById('scanBtn').innerHTML='🔍 Tekrar Tara';
+      if(p.status==='completed') setTimeout(loadResults,400);
+      else{ alert('Hata: '+p.message); document.getElementById('prog').classList.remove('on'); }
+    }
+  }catch(e){}
+}
+
+async function loadResults(){
+  const r=await fetch('/api/scan/results'); const d=await r.json();
+  document.getElementById('prog').classList.remove('on');
+  document.getElementById('results').classList.add('on');
+  renderSum(d.summary); renderVulns(d.vulnerabilities); renderHosts(d.hosts,d.port_results);
+  renderWifi(d.visible_networks); renderPorts(d.port_results); renderModules(d.modules);
+  renderModStrip(d.modules);
+}
+
+function renderSum(s){
+  if(!s) return;
+  const risk=s.risk_score||0;
+  const rc=risk<25?'var(--accent-green)':risk<50?'var(--warning)':'var(--danger)';
+  const sv=s.severity_counts||{};
+  document.getElementById('sumGrid').innerHTML=`
+    <div class="sum-card"><div class="num" style="color:${rc}">${risk}</div><div class="lbl">Risk Puanı</div>
+      <div class="risk-bar"><div class="risk-fill" style="width:${risk}%;background:${rc}"></div></div></div>
+    <div class="sum-card"><div class="num" style="color:var(--danger)">${sv['KRİTİK']||0}</div><div class="lbl">Kritik</div></div>
+    <div class="sum-card"><div class="num" style="color:var(--warning)">${sv['YÜKSEK']||0}</div><div class="lbl">Yüksek</div></div>
+    <div class="sum-card"><div class="num" style="color:#f59e0b">${sv['ORTA']||0}</div><div class="lbl">Orta</div></div>
+    <div class="sum-card"><div class="num">${s.total_hosts||0}</div><div class="lbl">Cihaz</div></div>
+    <div class="sum-card"><div class="num">${s.total_open_ports||0}</div><div class="lbl">Açık Port</div></div>
+  `;
+}
+
+function sevClass(s){ return s==='KRİTİK'?'sev-k':s==='YÜKSEK'?'sev-y':s==='ORTA'?'sev-o':'sev-d'; }
+
+function renderVulns(v){
+  const c=document.getElementById('t-vulns');
+  if(!v||!v.length){ c.innerHTML='<div class="empty"><div class="e-ico">✅</div>Zafiyet tespit edilmedi</div>'; return; }
+  c.innerHTML=`<div class="data-wrap"><h3>Tespit Edilen Zafiyetler <span class="cnt-badge">${v.length}</span></h3>
+    <table><thead><tr><th>#</th><th>Önem</th><th>Kategori</th><th>Zafiyet</th><th>Öneri</th><th>Ref</th></tr></thead>
+    <tbody>${v.map((x,i)=>`<tr><td class="mono" style="color:var(--text-muted)">${i+1}</td>
+      <td><span class="sev ${sevClass(x.severity)}">${esc(x.severity)}</span></td>
+      <td style="color:var(--text-secondary)">${esc(x.category)}</td>
+      <td><div style="font-weight:600;margin-bottom:4px">${esc(x.title)}</div><div style="color:var(--text-secondary);font-size:12px">${esc(x.description)}</div></td>
+      <td class="green" style="font-size:12px">${esc(x.recommendation)}</td>
+      <td class="mono" style="font-size:11px;color:var(--text-muted)">${esc(x.cisa_ref||'')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderHosts(h,pr){
+  const c=document.getElementById('t-hosts');
+  if(!h||!h.length){ c.innerHTML='<div class="empty"><div class="e-ico">💻</div>Cihaz bulunamadı</div>'; return; }
+  c.innerHTML=`<div class="data-wrap"><h3>Keşfedilen Cihazlar <span class="cnt-badge">${h.length}</span></h3>
+    <table><thead><tr><th>IP</th><th>MAC</th><th>Hostname</th><th>Portlar</th></tr></thead>
+    <tbody>${h.map(x=>{
+      const ports=(pr[x.ip]||[]).map(p=>`<span class="port-chip">${p}</span>`).join(' ')||'<span style="color:var(--text-muted)">—</span>';
+      return `<tr><td class="mono cyan">${esc(x.ip)}</td><td class="mono" style="font-size:12px">${esc(x.mac||'—')}</td><td>${esc(x.hostname||'—')}</td><td>${ports}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+function renderWifi(nets){
+  const c=document.getElementById('t-wifi');
+  if(!nets||!nets.length){ c.innerHTML='<div class="empty"><div class="e-ico">📶</div>Wi-Fi ağı bulunamadı</div>'; return; }
+  c.innerHTML=`<div class="data-wrap"><h3>Çevredeki Wi-Fi <span class="cnt-badge">${nets.length}</span></h3>
+    <table><thead><tr><th>SSID</th><th>Sinyal</th><th>Güvenlik</th></tr></thead>
+    <tbody>${nets.map(w=>{
+      const sec=w.security||''; const open=sec.toUpperCase().includes('OPEN')||sec.toUpperCase().includes('AÇIK')||!sec;
+      return `<tr><td style="font-weight:600">${esc(w.ssid||'—')}</td><td class="mono">${esc(w.rssi||'—')}</td>
+        <td ${open?'class="red"':'style="color:var(--accent-green)"'}>${esc(sec||'AÇIK')}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+function renderPorts(pr){
+  const c=document.getElementById('t-ports');
+  if(!pr||!Object.keys(pr).length){ c.innerHTML='<div class="empty"><div class="e-ico">🔌</div>Açık port yok</div>'; return; }
+  const sn={21:'FTP',22:'SSH',23:'Telnet',25:'SMTP',53:'DNS',80:'HTTP',110:'POP3',135:'MS-RPC',139:'NetBIOS',
+    143:'IMAP',443:'HTTPS',445:'SMB',993:'IMAPS',995:'POP3S',1433:'MSSQL',1521:'Oracle',3306:'MySQL',
+    3389:'RDP',5432:'PostgreSQL',5900:'VNC',6379:'Redis',8080:'HTTP-Proxy',8443:'HTTPS-Alt',27017:'MongoDB'};
+  const risky=[21,23,135,139,445,3389,5900,6379,27017];
+  let rows='';
+  for(const[ip,ports]of Object.entries(pr)){
+    for(const p of ports){
+      const r=risky.includes(p);
+      rows+=`<tr><td class="mono cyan">${esc(ip)}</td><td class="mono">${p}</td><td>${sn[p]||'Port-'+p}</td>
+        <td>${r?'<span class="red">⚠️ Riskli</span>':'<span class="green">Normal</span>'}</td></tr>`;
+    }
+  }
+  const total=Object.values(pr).flat().length;
+  c.innerHTML=`<div class="data-wrap"><h3>Açık Portlar <span class="cnt-badge">${total}</span></h3>
+    <table><thead><tr><th>IP</th><th>Port</th><th>Servis</th><th>Risk</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderModules(mods){
+  const c=document.getElementById('t-modules');
+  if(!mods||!Object.keys(mods).length){ c.innerHTML='<div class="empty"><div class="e-ico">🧩</div>Modül verisi yok</div>'; return; }
+  const names={rogue_dhcp:'🔍 Rogue DHCP Tespiti',arp_spoofing:'🕵️ ARP Spoofing Kontrolü',
+    dns_security:'🌐 DNS Güvenlik Analizi',gateway_audit:'🚪 Gateway Denetimi',wifi_encryption:'📡 Wi-Fi Şifreleme Analizi'};
+  const icons={ok:'✅',warning:'⚠️',critical:'🔴',info:'ℹ️'};
+  let html='';
+  for(const[k,d]of Object.entries(mods)){
+    const fs=d.findings||[];
+    if(fs.length){
+      html+=`<div class="findings-panel"><h3>${names[k]||k} <span class="cnt-badge">${fs.length}</span></h3>
+        ${fs.map(f=>`<div class="finding-row"><span class="finding-ico">${icons[f.type]||'•'}</span><span class="finding-txt">${esc(f.detail)}</span></div>`).join('')}</div>`;
+    }
+  }
+  c.innerHTML=html||'<div class="empty"><div class="e-ico">🧩</div>Bulgu yok</div>';
+}
+
+function renderModStrip(mods){
+  if(!mods) return;
+  const strip=document.getElementById('modStrip');
+  const names={rogue_dhcp:'DHCP',arp_spoofing:'ARP',dns_security:'DNS',gateway_audit:'Gateway',wifi_encryption:'Wi-Fi'};
+  let html='';
+  for(const[k,d]of Object.entries(mods)){
+    const fs=d.findings||[];
+    const hasCrit=fs.some(f=>f.type==='critical');
+    const hasWarn=fs.some(f=>f.type==='warning');
+    const cls=hasCrit?'crit':hasWarn?'warn':'ok';
+    const ico=hasCrit?'🔴':hasWarn?'⚠️':'✅';
+    html+=`<div class="mod-badge ${cls}">${ico} ${names[k]||k}</div>`;
+  }
+  strip.innerHTML=html;
+  strip.style.display='flex';
+}
+
+function swTab(id,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.tab-cnt').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('t-'+id).classList.add('on');
+}
+
+async function genReport(){
+  try{
+    const r=await fetch('/api/report/generate',POST); const d=await r.json();
+    if(d.status==='success') alert('Rapor kaydedildi!\n\n'+d.filepath);
+    else alert('Hata: '+(d.error||'?'));
+  }catch(e){ alert('Hata: '+e.message); }
+}
+</script>
+</body>
+</html>

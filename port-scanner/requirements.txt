@@ -1,0 +1,1 @@
+# Sadece standart kütüphane kullanılıyor (tkinter, socket, sqlite3).

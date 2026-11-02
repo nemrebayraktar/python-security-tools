@@ -1,0 +1,12 @@
+# Tarama/sorgu sonuçları gerçek IP ve ağ bilgisi içerir, repoya eklenmez
+*.db
+*.log
+!abuse-checker/access_sample.log
+wifi_audit_reports/
+__pycache__/
+.venv/
+venv/
+.env
+.DS_Store
+run.sh
+run_browser.sh
